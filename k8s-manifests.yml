@@ -1,0 +1,76 @@
+# Object 1: The Redis Service (ClusterIP)
+# Provides a stable internal DNS name for our Flask app to connect to.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+spec:
+  selector:
+    app: redis
+  ports:
+    - protocol: TCP
+      port: 6379
+      targetPort: 6379
+---
+# Object 2: The Redis StatefulSet
+# Manages the Redis database pod, ensuring it has stable storage.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+spec:
+  serviceName: "redis-service"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:alpine
+          ports:
+            - containerPort: 6379
+---
+# Object 3: The Flask App Deployment
+# Manages our stateless Flask application pods.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: page-view-app-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: page-view-app
+  template:
+    metadata:
+      labels:
+        app: page-view-app
+    spec:
+      containers:
+        - name: page-view-app-container
+          image: deedee16/page-view-app:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: REDIS_HOST
+              value: "redis-service"
+---
+# Object 4: The Flask App Service (LoadBalancer)
+# Exposes our Flask application to the internet.
+apiVersion: v1
+kind: Service
+metadata:
+  name: page-view-app-service
+spec:
+  selector:
+    app: page-view-app
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
